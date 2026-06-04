@@ -1,0 +1,6 @@
+{
+  "name": "Job Application Tracker",
+  "description": "A dashboard that filters job application emails, replies, and pending assessments from Gmail, LinkedIn, Naukri, and Foundit to track your recruitment progress.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
