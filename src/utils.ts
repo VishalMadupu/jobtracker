@@ -177,13 +177,12 @@ Apply directly on naukri.com to speed up recruitment process.`
 export function getStoredApplications(): JobApplication[] {
   const data = localStorage.getItem('job_tracker_applications');
   if (!data) {
-    localStorage.setItem('job_tracker_applications', JSON.stringify(INITIAL_APPLICATIONS));
-    return INITIAL_APPLICATIONS;
+    return [];
   }
   try {
     return JSON.parse(data);
   } catch (e) {
-    return INITIAL_APPLICATIONS;
+    return [];
   }
 }
 
@@ -194,13 +193,12 @@ export function saveStoredApplications(apps: JobApplication[]) {
 export function getStoredAlerts(): JobAlert[] {
   const data = localStorage.getItem('job_tracker_alerts');
   if (!data) {
-    localStorage.setItem('job_tracker_alerts', JSON.stringify(INITIAL_ALERTS));
-    return INITIAL_ALERTS;
+    return [];
   }
   try {
     return JSON.parse(data);
   } catch (e) {
-    return INITIAL_ALERTS;
+    return [];
   }
 }
 

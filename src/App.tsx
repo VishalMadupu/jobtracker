@@ -12,12 +12,16 @@ import {
   saveStoredApplications,
   getStoredAlerts,
   saveStoredAlerts,
+  INITIAL_APPLICATIONS,
+  INITIAL_ALERTS,
 } from './utils';
 
 import DashboardStats from './components/DashboardStats';
 import PipelineBoard from './components/PipelineBoard';
 import AlertsTimeline from './components/AlertsTimeline';
 import GmailSyncPanel from './components/GmailSyncPanel';
+import GoogleCalendarPanel from './components/GoogleCalendarPanel';
+import GoogleSheetsPanel from './components/GoogleSheetsPanel';
 import EmailParserTool from './components/EmailParserTool';
 import ManualAddForm from './components/ManualAddForm';
 import ApplicationDetails from './components/ApplicationDetails';
@@ -27,6 +31,62 @@ export default function App() {
   const [alerts, setAlerts] = useState<JobAlert[]>([]);
   const [activeApplication, setActiveApplication] = useState<JobApplication | null>(null);
   const [isManualAddOpen, setIsManualAddOpen] = useState(false);
+
+  // Global Google Workspace Authentication tokens
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+
+  // Load client ID configuration on mount
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.googleClientId) {
+          setGoogleClientId(data.googleClientId);
+        }
+      })
+      .catch((err) => console.error('Error loading config:', err));
+  }, []);
+
+  // Sync Google Identity Services client script globally
+  useEffect(() => {
+    if (!googleClientId) return;
+    const script = document.createElement('script');
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, [googleClientId]);
+
+  // Launch unified multi-scope Google authorization panel
+  const handleConnectGoogle = () => {
+    if (!googleClientId) {
+      alert("No Google Client ID set up. Navigate to environments of compile config or paste an Access Token manually below.");
+      return;
+    }
+
+    try {
+      // @ts-ignore
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets',
+        callback: (tokenResponse: any) => {
+          if (tokenResponse.access_token) {
+            setGoogleToken(tokenResponse.access_token);
+          } else {
+            alert("Authorization closed or rejected.");
+          }
+        },
+      });
+      client.requestAccessToken();
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to initialize Google OAuth connection: " + (err?.message || err));
+    }
+  };
 
   // Synced Global Navigation States
   const [selectedSource, setSelectedSource] = useState<string>('all');
@@ -344,6 +404,48 @@ export default function App() {
 
         </nav>
 
+        {/* Dynamic Mode Controller */}
+        <div className="px-5 py-3.5 border-t border-slate-800 bg-slate-950/20 shrink-0">
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 font-sans">
+            Dashboard Data Mode
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[10px] bg-slate-850 px-2 py-1.5 rounded border border-slate-850">
+              <span className="text-slate-400 font-medium font-sans animate-pulse">Demo Mode Info</span>
+              <button
+                id="clear-demo-btn"
+                onClick={() => {
+                  const confirmed = window.confirm("Do you want to clear the pre-designed demo applications block? This resets the board so you can dynamically synchronize live data from Gmail or input custom tracking cards!");
+                  if (confirmed) {
+                    handleUpdateApplications([]);
+                    handleUpdateAlerts([]);
+                  }
+                }}
+                className="text-red-400 hover:text-red-300 font-semibold cursor-pointer uppercase text-[9px] hover:underline transition-all"
+              >
+                Clear Mock
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-slate-500 font-bold text-[9px] font-sans">Need mock items back?</span>
+              <button
+                id="restore-demo-btn"
+                onClick={() => {
+                  const confirmed = window.confirm("Load sample tracker entities for evaluation of UI statistics & pipelines?");
+                  if (confirmed) {
+                    handleUpdateApplications(INITIAL_APPLICATIONS);
+                    handleUpdateAlerts(INITIAL_ALERTS);
+                  }
+                }}
+                className="text-slate-300 hover:text-white font-extrabold cursor-pointer text-[9px] bg-slate-800 px-1.8 py-0.6 rounded transition-all hover:bg-slate-700"
+              >
+                Restore Demo
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* User context layout bottom footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/45 shrink-0">
           <div className="flex items-center gap-2 md:gap-2.5">
@@ -404,7 +506,20 @@ export default function App() {
             
             {/* Sync Integrations & Sandbox parsers section (Left) */}
             <div className="lg:col-span-5 flex flex-col gap-6">
-              <GmailSyncPanel onImportData={handleImportedData} />
+              <GmailSyncPanel
+                token={googleToken}
+                onConnectGoogle={handleConnectGoogle}
+                onImportData={handleImportedData}
+              />
+              <GoogleCalendarPanel
+                token={googleToken}
+                onConnectGoogle={handleConnectGoogle}
+              />
+              <GoogleSheetsPanel
+                token={googleToken}
+                onConnectGoogle={handleConnectGoogle}
+                applications={applications}
+              />
               <EmailParserTool onImportData={handleImportedData} />
             </div>
 
@@ -443,6 +558,8 @@ export default function App() {
             onClose={() => setActiveApplication(null)}
             onUpdate={handleUpdateSingleApplication}
             onDelete={handleDeleteApplication}
+            googleToken={googleToken}
+            onConnectGoogle={handleConnectGoogle}
           />
         )}
       </AnimatePresence>

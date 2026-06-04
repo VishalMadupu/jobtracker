@@ -9,12 +9,12 @@ import { Mail, RefreshCw, Key, ShieldCheck, Info, Sparkles, ExternalLink } from 
 import { ParserResponse } from '../types';
 
 interface GmailSyncPanelProps {
+  token: string | null;
+  onConnectGoogle: () => void;
   onImportData: (data: ParserResponse) => void;
 }
 
-export default function GmailSyncPanel({ onImportData }: GmailSyncPanelProps) {
-  const [clientId, setClientId] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }: GmailSyncPanelProps) {
   const [manualTokenInput, setManualTokenInput] = useState('');
   const [query, setQuery] = useState('subject:(job OR application OR interview OR assessment OR resume OR placement) OR "LinkedIn" OR "Naukri" OR "foundit"');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -22,61 +22,13 @@ export default function GmailSyncPanel({ onImportData }: GmailSyncPanelProps) {
   const [isSuccess, setIsSuccess] = useState(true);
   const [showTokenSettings, setShowTokenSettings] = useState(false);
 
-  // Fetch client ID configuration on mount
-  useEffect(() => {
-    fetch('/api/config')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.googleClientId) {
-          setClientId(data.googleClientId);
-        }
-      })
-      .catch((err) => console.error('Error fetching server config:', err));
-  }, []);
-
-  // Sync Google Identity Services client script
-  useEffect(() => {
-    if (!clientId) return;
-    const script = document.createElement('script');
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, [clientId]);
+  // Fallback state for manual developer override token
+  const [localToken, setLocalToken] = useState<string | null>(null);
+  const effectiveToken = localToken || token;
 
   // Launch standard Google Client ID OAuth pop-up login
   const handleOAuthLogin = () => {
-    if (!clientId) {
-      setStatusMsg("No Google Client ID set up. Navigate to Settings or paste an Access Token manually below.");
-      setIsSuccess(false);
-      return;
-    }
-
-    try {
-      // @ts-ignore
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/gmail.readonly',
-        callback: (tokenResponse: any) => {
-          if (tokenResponse.access_token) {
-            setToken(tokenResponse.access_token);
-            setStatusMsg("Successfully authorized Gmail via Google!");
-            setIsSuccess(true);
-          } else {
-            setStatusMsg("Authorization popup was closed or failed.");
-            setIsSuccess(false);
-          }
-        },
-      });
-      client.requestAccessToken();
-    } catch (err: any) {
-      console.error(err);
-      setStatusMsg("Failed to open OAuth Client pop-up: " + (err?.message || err));
-      setIsSuccess(false);
-    }
+    onConnectGoogle();
   };
 
   const syncGmailMessages = async (accessToken: string) => {
@@ -168,7 +120,7 @@ export default function GmailSyncPanel({ onImportData }: GmailSyncPanelProps) {
   const handleManualTokenSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTokenInput.trim()) return;
-    setToken(manualTokenInput.trim());
+    setLocalToken(manualTokenInput.trim());
     setStatusMsg("Saved manual access token for Gmail queries!");
     setIsSuccess(true);
     setManualTokenInput('');
@@ -185,7 +137,7 @@ export default function GmailSyncPanel({ onImportData }: GmailSyncPanelProps) {
             Live Gmail Integration
           </h3>
         </div>
-        {token && (
+        {effectiveToken && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-150 text-emerald-700 border border-emerald-200">
             <ShieldCheck className="w-3 h-3 text-emerald-600" /> Linked
           </span>
@@ -216,10 +168,10 @@ export default function GmailSyncPanel({ onImportData }: GmailSyncPanelProps) {
 
         {/* Sync Controls */}
         <div className="flex flex-wrap gap-2 pt-2 items-center">
-          {token ? (
+          {effectiveToken ? (
             <button
               id="gmail-sync-start-btn"
-              onClick={() => syncGmailMessages(token)}
+              onClick={() => syncGmailMessages(effectiveToken)}
               disabled={isSyncing}
               className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white hover:shadow-md cursor-pointer rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50"
             >

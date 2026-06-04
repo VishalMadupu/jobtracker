@@ -13,9 +13,11 @@ interface ApplicationDetailsProps {
   onClose: () => void;
   onUpdate: (app: JobApplication) => void;
   onDelete: (id: string) => void;
+  googleToken: string | null;
+  onConnectGoogle: () => void;
 }
 
-export default function ApplicationDetails({ application, onClose, onUpdate, onDelete }: ApplicationDetailsProps) {
+export default function ApplicationDetails({ application, onClose, onUpdate, onDelete, googleToken, onConnectGoogle }: ApplicationDetailsProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [company, setCompany] = useState(application.company);
   const [role, setRole] = useState(application.role);
@@ -236,6 +238,72 @@ export default function ApplicationDetails({ application, onClose, onUpdate, onD
                   )}
                 </div>
               </div>
+
+              {/* Google Calendar Interactive Booking widget */}
+              {(application.status === 'interview' || application.status === 'assessment' || application.pendingAssessment) && (
+                <div className="mt-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-2 text-xs text-blue-800 font-sans">
+                    <Calendar className="w-4.5 h-4.5 text-blue-500 shrink-0 mt-0.5 pointer-events-none" />
+                    <div>
+                      <span className="font-bold font-sans">Google Calendar Sync:</span>
+                      <p className="text-[10px] text-blue-705 font-sans leading-relaxed mt-0.5">Publish this {application.status} milestone event directly to your live Google Schedule.</p>
+                    </div>
+                  </div>
+                  <button
+                    id="schedule-cal-entry-btn"
+                    onClick={async () => {
+                      if (!googleToken) {
+                        onConnectGoogle();
+                        return;
+                      }
+                      
+                      const eventTitle = `${application.status.toUpperCase()} Prep: ${application.company} - ${application.role}`;
+                      const confirmed = window.confirm(`Do you want to write a new event "${eventTitle}" on your Google Calendar?`);
+                      if (!confirmed) return;
+
+                      try {
+                        const start = new Date();
+                        // Schedule tomorrow morning at 10 AM by default
+                        start.setDate(start.getDate() + 1);
+                        start.setHours(10, 0, 0, 0);
+                        const end = new Date(start.getTime() + 45 * 60 * 1000);
+
+                        const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+                          method: 'POST',
+                          headers: {
+                            Authorization: `Bearer ${googleToken}`,
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            summary: eventTitle,
+                            description: `Interview Preparation Checklist:\n- Review job description: ${application.role}\n- Prep Company notes for: ${application.company}\n\nNotes logged so far:\n${application.notes || 'None'}\n\nSnippet summary: ${application.snippet || ''}`,
+                            start: {
+                              dateTime: start.toISOString(),
+                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+                            },
+                            end: {
+                              dateTime: end.toISOString(),
+                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+                            }
+                          })
+                        });
+
+                        if (response.ok) {
+                          alert(`Successfully scheduled "${eventTitle}" on your Google Calendar!`);
+                        } else {
+                          const errData = await response.json().catch(() => ({}));
+                          throw new Error(errData.error?.message || `API error code ${response.status}`);
+                        }
+                      } catch (err: any) {
+                        alert(`Failed to add calendar entry: ${err.message || err}`);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold cursor-pointer shrink-0 transition-colors"
+                  >
+                    {!googleToken ? 'Pair Calendar' : 'Schedule Event'}
+                  </button>
+                </div>
+              )}
 
               {/* Assessment notification */}
               {application.pendingAssessment && (
