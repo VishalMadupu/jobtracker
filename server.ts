@@ -40,7 +40,7 @@ function getGeminiClient(): GoogleGenAI {
 // 1. API: Server configurations (for Google OAuth Client ID)
 app.get('/api/config', (req, res) => {
   res.json({
-    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '954450664882-lllerk44sn3pppa4r4f2ejtrt5hb4soh.apps.googleusercontent.com',
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
   });
 });
