@@ -69,15 +69,28 @@ export default function PipelineBoard({
   const getSourceBadgeStyle = (source: string) => {
     switch (source) {
       case 'linkedin':
-        return 'bg-blue-100 text-blue-700 border border-blue-200';
+        return 'bg-blue-100 text-blue-700 border border-blue-200 ring-1 ring-blue-400/20';
       case 'naukri':
-        return 'bg-slate-900 text-white';
+        return 'bg-slate-900 text-white border border-slate-700 ring-1 ring-slate-400/20';
       case 'foundit':
-        return 'bg-purple-100 text-purple-700 border border-purple-200';
+        return 'bg-purple-100 text-purple-700 border border-purple-200 ring-1 ring-purple-400/20';
       case 'gmail':
-        return 'bg-red-50 text-red-700 border border-red-100';
+        return 'bg-red-50 text-red-700 border border-red-100 ring-1 ring-red-400/20';
+      case 'manual':
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-100 ring-1 ring-emerald-400/20';
       default:
         return 'bg-slate-100 text-slate-700 border border-slate-200';
+    }
+  };
+
+  const getSourceIcon = (source: string) => {
+    switch (source) {
+      case 'linkedin': return '🔗';
+      case 'naukri': return '💼';
+      case 'foundit': return '🔍';
+      case 'gmail': return '📧';
+      case 'manual': return '📝';
+      default: return '📍';
     }
   };
 

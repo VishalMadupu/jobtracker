@@ -49,7 +49,12 @@ export default function GoogleCalendarPanel({ token, onConnectGoogle }: GoogleCa
       });
 
       if (!response.ok) {
-        throw new Error(`Google Calendar API responded with status ${response.status}`);
+        const errBody = await response.json().catch(() => ({}));
+        let msg = errBody.error?.message || `Google Calendar API responded with status ${response.status}`;
+        if (response.status === 403) {
+          msg = "Access Forbidden (403): Ensure 'Google Calendar API' is enabled in your Google Cloud Console.";
+        }
+        throw new Error(msg);
       }
 
       const data = await response.json();

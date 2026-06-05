@@ -12,11 +12,19 @@ interface GmailSyncPanelProps {
   token: string | null;
   onConnectGoogle: () => void;
   onImportData: (data: ParserResponse) => void;
+  defaultQuery?: string;
 }
 
-export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }: GmailSyncPanelProps) {
+export default function GmailSyncPanel({ token, onConnectGoogle, onImportData, defaultQuery }: GmailSyncPanelProps) {
   const [manualTokenInput, setManualTokenInput] = useState('');
-  const [query, setQuery] = useState('subject:(job OR application OR interview OR assessment OR resume OR placement) OR "LinkedIn" OR "Naukri" OR "foundit"');
+  const [query, setQuery] = useState(defaultQuery || 'subject:(job OR application OR interview OR assessment OR resume OR placement) OR "LinkedIn" OR "Naukri" OR "foundit"');
+  
+  // Use effect to update query if defaultQuery changes (e.g. after config load)
+  useEffect(() => {
+    if (defaultQuery) {
+      setQuery(defaultQuery);
+    }
+  }, [defaultQuery]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(true);
@@ -44,7 +52,12 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }:
       });
 
       if (!searchRes.ok) {
-        throw new Error(`Gmail API search request rejected (${searchRes.status}). Verify your token permissions.`);
+        const errBody = await searchRes.json().catch(() => ({}));
+        let msg = errBody.error?.message || `Gmail API search request rejected (${searchRes.status})`;
+        if (searchRes.status === 403) {
+          msg = "Access Forbidden (403): Ensure 'Gmail API' is enabled in your Google Cloud Console and your OAuth Client ID is authorized for this origin (http://localhost:3000).";
+        }
+        throw new Error(msg);
       }
 
       const searchData = await searchRes.json();
@@ -65,7 +78,11 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }:
           const detailRes = await fetch(detailUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
-          if (!detailRes.ok) return null;
+          if (!detailRes.ok) {
+            const errBody = await detailRes.json().catch(() => ({}));
+            console.error(`Gmail Detail Error: ${errBody.error?.message || detailRes.status}`);
+            return null;
+          }
           const detailData = await detailRes.json();
 
           // Extract Subject, From, Date headers
@@ -98,7 +115,8 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }:
       });
 
       if (!analyzeRes.ok) {
-        throw new Error("Gemini parser backend rejected the email bundle. Verify GEMINI_API_KEY.");
+        const errBody = await analyzeRes.json().catch(() => ({}));
+        throw new Error(errBody.error || "Gemini parser backend rejected the email bundle.");
       }
 
       const parsedResponse: ParserResponse = await analyzeRes.json();
@@ -157,13 +175,41 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData }:
           <label className="block text-[10px] font-bold uppercase text-slate-400 font-sans tracking-wider">
             Gmail Search Filter Query
           </label>
-          <input
-            id="sync-query-input"
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full mt-1.5 p-2 rounded-lg border border-slate-200 text-xs text-slate-700 font-mono tracking-tight focus:outline-hidden focus:ring-1 focus:ring-red-400"
-          />
+          <div className="flex flex-col gap-2 mt-1.5">
+            <input
+              id="sync-query-input"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full p-2 rounded-lg border border-slate-200 text-xs text-slate-700 font-mono tracking-tight focus:outline-hidden focus:ring-1 focus:ring-red-400"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              <button 
+                onClick={() => setQuery('from:linkedin.com OR "LinkedIn"')}
+                className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[9px] font-bold hover:bg-blue-100 transition-colors cursor-pointer"
+              >
+                LinkedIn Preset
+              </button>
+              <button 
+                onClick={() => setQuery('from:naukri.com OR "Naukri"')}
+                className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[9px] font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Naukri Preset
+              </button>
+              <button 
+                onClick={() => setQuery('from:foundit.in OR "foundit" OR "Monster India"')}
+                className="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded text-[9px] font-bold hover:bg-purple-100 transition-colors cursor-pointer"
+              >
+                Foundit Preset
+              </button>
+              <button 
+                onClick={() => setQuery('subject:(job OR application OR interview OR assessment OR resume OR placement) OR "LinkedIn" OR "Naukri" OR "foundit"')}
+                className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100 rounded text-[9px] font-bold hover:bg-red-100 transition-colors cursor-pointer"
+              >
+                All Jobs Preset
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Sync Controls */}

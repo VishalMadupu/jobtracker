@@ -41,3 +41,9 @@ export interface ParserResponse {
   applications: Omit<JobApplication, 'id' | 'updatedAt'>[];
   jobAlerts: Omit<JobAlert, 'id' | 'status'>[];
 }
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  picture: string;
+}

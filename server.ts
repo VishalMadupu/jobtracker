@@ -42,6 +42,8 @@ app.get('/api/config', (req, res) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || '954450664882-lllerk44sn3pppa4r4f2ejtrt5hb4soh.apps.googleusercontent.com',
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    defaultSpreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || null,
+    defaultSearchQuery: process.env.DEFAULT_SEARCH_QUERY || 'subject:(job OR application OR interview OR assessment OR resume OR placement) OR "LinkedIn" OR "Naukri" OR "foundit"',
   });
 });
 
@@ -95,7 +97,7 @@ app.post('/api/parse-email', async (req, res) => {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.0-flash',
       contents: userPromptString,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -130,13 +132,13 @@ app.post('/api/parse-email', async (req, res) => {
             },
             jobAlerts: {
               type: Type.ARRAY,
-              description: "Array of extracted general job alert digests or recommendations from boards",
+              description: "Array of extracted general job alert digests or recommendations from boards like LinkedIn, Naukri, or Foundit.",
               items: {
                 type: Type.OBJECT,
                 properties: {
                   title: { type: Type.STRING },
                   company: { type: Type.STRING },
-                  source: { type: Type.STRING },
+                  source: { type: Type.STRING, description: "Must be one of 'linkedin', 'naukri', 'foundit', or 'other'." },
                   date: { type: Type.STRING },
                   snippet: { type: Type.STRING },
                   link: { type: Type.STRING, description: "Null if not found." }
@@ -150,11 +152,26 @@ app.post('/api/parse-email', async (req, res) => {
       }
     });
 
-    const parsedData = JSON.parse(response.text || '{"applications":[],"jobAlerts":[]}');
-    res.json(parsedData);
+    if (!response || !response.text) {
+      console.error('Gemini API returned an empty or invalid response:', response);
+      return res.status(500).json({ error: 'Gemini API returned an empty response. This might be due to safety filters or an invalid prompt.' });
+    }
+
+    try {
+      const parsedData = JSON.parse(response.text);
+      res.json(parsedData);
+    } catch (parseError) {
+      console.error('Failed to parse Gemini JSON response:', response.text);
+      res.status(500).json({ error: 'Gemini returned an invalid JSON format. Please try again or refine your query.' });
+    }
   } catch (error: any) {
     console.error('Email parsing endpoint error:', error);
-    res.status(500).json({ error: error?.message || 'Server error occurred during analysis.' });
+    // Provide more descriptive error for common SDK/API issues
+    let errorMsg = error?.message || 'Server error occurred during analysis.';
+    if (errorMsg.includes('API key not valid')) {
+      errorMsg = 'Invalid Gemini API Key. Please verify your GEMINI_API_KEY in the .env file.';
+    }
+    res.status(500).json({ error: errorMsg });
   }
 });
 
