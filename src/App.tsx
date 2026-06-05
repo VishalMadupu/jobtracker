@@ -12,8 +12,6 @@ import {
   saveStoredApplications,
   getStoredAlerts,
   saveStoredAlerts,
-  INITIAL_APPLICATIONS,
-  INITIAL_ALERTS,
 } from './utils';
 
 import DashboardStats from './components/DashboardStats';
@@ -403,48 +401,6 @@ export default function App() {
           </button>
 
         </nav>
-
-        {/* Dynamic Mode Controller */}
-        <div className="px-5 py-3.5 border-t border-slate-800 bg-slate-950/20 shrink-0">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 font-sans">
-            Dashboard Data Mode
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] bg-slate-850 px-2 py-1.5 rounded border border-slate-850">
-              <span className="text-slate-400 font-medium font-sans animate-pulse">Demo Mode Info</span>
-              <button
-                id="clear-demo-btn"
-                onClick={() => {
-                  const confirmed = window.confirm("Do you want to clear the pre-designed demo applications block? This resets the board so you can dynamically synchronize live data from Gmail or input custom tracking cards!");
-                  if (confirmed) {
-                    handleUpdateApplications([]);
-                    handleUpdateAlerts([]);
-                  }
-                }}
-                className="text-red-400 hover:text-red-300 font-semibold cursor-pointer uppercase text-[9px] hover:underline transition-all"
-              >
-                Clear Mock
-              </button>
-            </div>
-            
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-slate-500 font-bold text-[9px] font-sans">Need mock items back?</span>
-              <button
-                id="restore-demo-btn"
-                onClick={() => {
-                  const confirmed = window.confirm("Load sample tracker entities for evaluation of UI statistics & pipelines?");
-                  if (confirmed) {
-                    handleUpdateApplications(INITIAL_APPLICATIONS);
-                    handleUpdateAlerts(INITIAL_ALERTS);
-                  }
-                }}
-                className="text-slate-300 hover:text-white font-extrabold cursor-pointer text-[9px] bg-slate-800 px-1.8 py-0.6 rounded transition-all hover:bg-slate-700"
-              >
-                Restore Demo
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* User context layout bottom footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/45 shrink-0">
