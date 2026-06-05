@@ -59,6 +59,7 @@ export default function App() {
     }
   }, [googleToken]);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [defaultQuery, setDefaultQuery] = useState<string>('');
 
   // LinkedIn native token
   const [linkedInToken, setLinkedInToken] = useState<string | null>(null);

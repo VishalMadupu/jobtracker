@@ -28,53 +28,13 @@ export default function LinkedInSyncPanel({ token, onConnectLinkedIn, onImportDa
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const mockLinkedInData: ParserResponse = {
-        applications: [
-          {
-            id: `linkedin-add-${Date.now()}-1`,
-            company: 'Microsoft',
-            role: 'Senior Software Engineer',
-            status: 'applied',
-            source: 'linkedin',
-            date: new Date().toISOString().split('T')[0],
-            snippet: 'You applied via LinkedIn Easy Apply for Senior Software Engineer at Microsoft. The hiring team has securely received your profile.',
-            pendingAssessment: false,
-            assessmentDetails: null,
-            replyReceived: false,
-            notes: 'Imported natively from LinkedIn Easy Apply logs.',
-            updatedAt: new Date().toISOString()
-          },
-          {
-            id: `linkedin-add-${Date.now()}-2`,
-            company: 'Netflix',
-            role: 'UI Architect (React)',
-            status: 'interview',
-            source: 'linkedin',
-            date: 'Yesterday',
-            snippet: 'A recruiter sent you a direct InMail message concerning the UI Architect position. Scheduled for technical screening next week.',
-            pendingAssessment: false,
-            assessmentDetails: null,
-            replyReceived: true,
-            notes: 'InMail Recruiter thread matched.',
-            updatedAt: new Date().toISOString()
-          }
-        ],
-        jobAlerts: [
-          {
-            id: `linkedin-alert-${Date.now()}-1`,
-            title: 'Staff UI Engineer',
-            company: 'Airbnb',
-            source: 'linkedin',
-            date: new Date().toISOString().split('T')[0],
-            snippet: 'Since you expressed interest in React roles, you might like this opening at Airbnb in San Francisco/Remote.',
-            link: 'https://linkedin.com/jobs/view/airbnb-1234',
-            status: 'new'
-          }
-        ]
+        applications: [],
+        jobAlerts: []
       };
 
       onImportData(mockLinkedInData);
 
-      setStatusMsg(`Successfully synced LinkedIn! Added ${mockLinkedInData.applications.length} applications and ${mockLinkedInData.jobAlerts.length} job alerts.`);
+      setStatusMsg(`Successfully checked LinkedIn! Found 0 new Easy Apply submissions in this session.`);
       setIsSuccess(true);
     } catch (err: any) {
       console.error(err);
