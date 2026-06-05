@@ -70,7 +70,7 @@ export default function App() {
       // @ts-ignore
       const client = google.accounts.oauth2.initTokenClient({
         client_id: googleClientId,
-        scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets',
+        scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets',
         callback: (tokenResponse: any) => {
           if (tokenResponse.access_token) {
             setGoogleToken(tokenResponse.access_token);
