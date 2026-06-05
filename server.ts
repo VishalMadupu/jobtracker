@@ -45,6 +45,42 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// 1.1 API: LinkedIn OAuth Popup URLs
+app.get('/api/linkedin/auth/url', (req, res) => {
+  const redirectUri = process.env.APP_URL ? `${process.env.APP_URL}/auth/linkedin/callback` : 'http://localhost:3000/auth/linkedin/callback';
+  
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.LINKEDIN_CLIENT_ID || 'placeholder',
+    redirect_uri: redirectUri,
+    state: 'jobtrackerhub',
+    scope: 'r_liteprofile r_emailaddress',
+  });
+  
+  res.json({ url: `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}` });
+});
+
+app.get(['/auth/linkedin/callback', '/auth/linkedin/callback/'], (req, res) => {
+  // Mock callback success behavior since actual LinkedIn token exchange requires client secrets
+  // In a real production scenario, we'd exchange req.query.code for a token here.
+  res.send(`
+    <html>
+      <body>
+        <script>
+          if (window.opener) {
+            // Mock LinkedIn Token
+            window.opener.postMessage({ type: 'LINKEDIN_AUTH_SUCCESS', token: 'mock-linkedin-native-token' }, '*');
+            window.close();
+          } else {
+            window.location.href = '/';
+          }
+        </script>
+        <p>LinkedIn Authentication successful. This window should close automatically.</p>
+      </body>
+    </html>
+  `);
+});
+
 // Helper prompt to instruct Gemini on classification rules
 const SYSTEM_INSTRUCTION = `
 You are a highly details-focused Recruitment Analytics AI. Your task is to process email headers, threads, or copy-pasted email blocks and extract job applications, recruiter replies, assessments, and job board alerts.

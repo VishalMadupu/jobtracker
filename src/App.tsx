@@ -23,6 +23,7 @@ import GoogleSheetsPanel from './components/GoogleSheetsPanel';
 import EmailParserTool from './components/EmailParserTool';
 import ManualAddForm from './components/ManualAddForm';
 import ApplicationDetails from './components/ApplicationDetails';
+import LinkedInSyncPanel from './components/LinkedInSyncPanel';
 
 export default function App() {
   const [applications, setApplications] = useState<JobApplication[]>([]);
@@ -33,6 +34,9 @@ export default function App() {
   // Global Google Workspace Authentication tokens
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  
+  // LinkedIn native token
+  const [linkedInToken, setLinkedInToken] = useState<string | null>(null);
 
   // Load client ID configuration on mount
   useEffect(() => {
@@ -59,6 +63,24 @@ export default function App() {
     };
   }, [googleClientId]);
 
+  // Listen for LinkedIn OAuth postMessage
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Allow local and preview run environments
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      if (event.data?.type === 'LINKEDIN_AUTH_SUCCESS') {
+        if (event.data.token) {
+          setLinkedInToken(event.data.token);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Launch unified multi-scope Google authorization panel
   const handleConnectGoogle = () => {
     if (!googleClientId) {
@@ -71,6 +93,7 @@ export default function App() {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: googleClientId,
         scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets',
+        prompt: 'consent',
         callback: (tokenResponse: any) => {
           if (tokenResponse.access_token) {
             setGoogleToken(tokenResponse.access_token);
@@ -83,6 +106,30 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       alert("Failed to initialize Google OAuth connection: " + (err?.message || err));
+    }
+  };
+
+  // Launch LinkedIn OAuth window
+  const handleConnectLinkedIn = async () => {
+    try {
+      const response = await fetch('/api/linkedin/auth/url');
+      if (!response.ok) {
+        throw new Error('Failed to get auth URL');
+      }
+      const { url } = await response.json();
+      
+      const authWindow = window.open(
+        url,
+        'oauth_popup',
+        'width=600,height=700'
+      );
+
+      if (!authWindow) {
+        alert('Please allow popups for this site to connect your LinkedIn account.');
+      }
+    } catch (error) {
+      console.error('LinkedIn OAuth error:', error);
+      alert('Failed to initialize LinkedIn connection.');
     }
   };
 
@@ -462,6 +509,11 @@ export default function App() {
             
             {/* Sync Integrations & Sandbox parsers section (Left) */}
             <div className="lg:col-span-5 flex flex-col gap-6">
+              <LinkedInSyncPanel
+                token={linkedInToken}
+                onConnectLinkedIn={handleConnectLinkedIn}
+                onImportData={handleImportedData}
+              />
               <GmailSyncPanel
                 token={googleToken}
                 onConnectGoogle={handleConnectGoogle}
