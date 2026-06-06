@@ -14,14 +14,13 @@ interface EmailParserToolProps {
 }
 
 export default function EmailParserTool({ onImportData }: EmailParserToolProps) {
-  const [inputText, setInputText] = useState('');
-  const [selectedTemplateIdx, setSelectedTemplateIdx] = useState(-1);
+  const [inputText, setInputText] = useState(SAMPLE_EMAIL_TEMPLATES[0].text);
+  const [selectedTemplateIdx, setSelectedTemplateIdx] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const handleTemplateSelect = (idx: number) => {
-    if (!SAMPLE_EMAIL_TEMPLATES[idx]) return;
     setSelectedTemplateIdx(idx);
     setInputText(SAMPLE_EMAIL_TEMPLATES[idx].text);
     setSuccessMsg(null);
@@ -30,7 +29,7 @@ export default function EmailParserTool({ onImportData }: EmailParserToolProps) 
 
   const handleAiParse = async () => {
     if (!inputText.trim()) {
-      setErrMsg("Please paste some email text (headers or body) to analyze.");
+      setErrMsg("Please paste some email text or select a template first.");
       return;
     }
     
@@ -46,8 +45,7 @@ export default function EmailParserTool({ onImportData }: EmailParserToolProps) 
       });
 
       if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || `Failed to parse: ${response.statusText}`);
+        throw new Error(`Failed to parse: ${response.statusText}`);
       }
 
       const parsed: ParserResponse = await response.json();

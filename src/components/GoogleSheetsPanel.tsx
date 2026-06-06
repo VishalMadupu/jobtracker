@@ -5,20 +5,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, ShieldCheck, HelpCircle, Upload } from 'lucide-react';
-import { JobApplication, ParserResponse } from '../types';
+import { FileSpreadsheet, Download, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, ShieldCheck, HelpCircle } from 'lucide-react';
+import { JobApplication } from '../types';
 
 interface GoogleSheetsPanelProps {
   token: string | null;
   onConnectGoogle: () => void;
   applications: JobApplication[];
-  onImportData: (data: ParserResponse) => void;
 }
 
-export default function GoogleSheetsPanel({ token, onConnectGoogle, applications, onImportData }: GoogleSheetsPanelProps) {
+export default function GoogleSheetsPanel({ token, onConnectGoogle, applications }: GoogleSheetsPanelProps) {
   const [sheetName, setSheetName] = useState('My Job Tracker Hub Export');
   const [isExporting, setIsExporting] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   
@@ -32,60 +30,6 @@ export default function GoogleSheetsPanel({ token, onConnectGoogle, applications
   const [lastExported, setLastExported] = useState<string | null>(() => {
     return localStorage.getItem('jobtracker_sheets_time') || null;
   });
-
-  // Pull data from existing Google Sheet
-  const handlePullData = async () => {
-    if (!token || !spreadsheetId) return;
-
-    setIsPulling(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    try {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A2:K100`;
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error?.message || `Failed to pull data. Status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const rows = data.values || [];
-
-      if (rows.length === 0) {
-        setSuccessMsg('Spreadsheet is empty or has no data rows below headers.');
-        return;
-      }
-
-      // Map rows back to applications
-      const importedApps: any[] = rows.map((row: any[]) => ({
-        company: row[1] || 'Unknown',
-        role: row[2] || 'Unknown',
-        status: (row[3] || 'applied').toLowerCase(),
-        source: (row[4] || 'manual').toLowerCase(),
-        date: row[5] || '',
-        pendingAssessment: row[6] === 'YES',
-        assessmentDetails: row[7] === 'N/A' ? null : row[7],
-        replyReceived: row[8] === 'YES',
-        snippet: row[9] || '',
-      }));
-
-      onImportData({
-        applications: importedApps,
-        jobAlerts: []
-      });
-
-      setSuccessMsg(`Successfully imported ${importedApps.length} entries from Google Sheets!`);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg(err.message || 'Failed to pull data from Google Sheets.');
-    } finally {
-      setIsPulling(false);
-    }
-  };
 
   // Export or overwrite data on a Google Sheet
   const handleExportData = async (e: React.FormEvent, createNew: boolean = true) => {
@@ -126,12 +70,7 @@ export default function GoogleSheetsPanel({ token, onConnectGoogle, applications
         });
 
         if (!createResponse.ok) {
-          const errBody = await createResponse.json().catch(() => ({}));
-          let msg = errBody.error?.message || `Google Sheets API responded with status ${createResponse.status} during creation.`;
-          if (createResponse.status === 403) {
-            msg = "Access Forbidden (403): Ensure 'Google Sheets API' is enabled in your Google Cloud Console.";
-          }
-          throw new Error(msg);
+          throw new Error(`Google Sheets API responded with status ${createResponse.status} during creation.`);
         }
 
         const resData = await createResponse.json();
@@ -191,8 +130,7 @@ export default function GoogleSheetsPanel({ token, onConnectGoogle, applications
       });
 
       if (!updateResponse.ok) {
-        const errBody = await updateResponse.json().catch(() => ({}));
-        throw new Error(errBody.error?.message || `Failed to write cells. Sheets API status: ${updateResponse.status}`);
+        throw new Error(`Failed to write cells. Sheets API status: ${updateResponse.status}`);
       }
 
       // 4. Save credentials/links dynamically to state + localStorage
@@ -335,25 +273,15 @@ export default function GoogleSheetsPanel({ token, onConnectGoogle, applications
                   </button>
 
                   <button
-                    id="sheets-pull-btn"
-                    onClick={handlePullData}
-                    disabled={isPulling}
-                    className="w-full h-8.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-sans shadow-sm"
+                    id="sheets-recreate-btn"
+                    onClick={(e) => handleExportData(e, true)}
+                    disabled={isExporting}
+                    className="w-full h-8.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-sans"
                   >
-                    {isPulling ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                    <span>Import Sheet Data</span>
+                    <Download className="w-3 h-3" />
+                    <span>Export New File</span>
                   </button>
                 </div>
-
-                <button
-                  id="sheets-recreate-btn"
-                  onClick={(e) => handleExportData(e, true)}
-                  disabled={isExporting}
-                  className="w-full h-8.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 font-sans"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Export New File</span>
-                </button>
               </div>
             ) : (
               <form onSubmit={(e) => handleExportData(e, true)} className="space-y-3">

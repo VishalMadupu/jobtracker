@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Calendar, Plus, Mail, HelpCircle, LayoutGrid, CheckSquare, Layers, FolderDot, LogOut, User } from 'lucide-react';
-import { JobApplication, JobAlert, ParserResponse, UserProfile } from './types';
+import { Sparkles, Calendar, Plus, Mail, HelpCircle, LayoutGrid, CheckSquare, Layers, FolderDot } from 'lucide-react';
+import { JobApplication, JobAlert, ParserResponse } from './types';
 import {
   getStoredApplications,
   saveStoredApplications,
@@ -30,37 +30,11 @@ export default function App() {
   const [alerts, setAlerts] = useState<JobAlert[]>([]);
   const [activeApplication, setActiveApplication] = useState<JobApplication | null>(null);
   const [isManualAddOpen, setIsManualAddOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Global Google Workspace Authentication tokens with session persistence
-  const [googleToken, setGoogleToken] = useState<string | null>(() => {
-    return sessionStorage.getItem('jobtracker_google_token');
-  });
-
-  // Fetch User Profile when token is available
-  useEffect(() => {
-    if (googleToken) {
-      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${googleToken}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.email) {
-            setUserProfile({
-              name: data.name || 'Guest User',
-              email: data.email,
-              picture: data.picture || ''
-            });
-          }
-        })
-        .catch(err => console.error('Failed to fetch profile:', err));
-    } else {
-      setUserProfile(null);
-    }
-  }, [googleToken]);
+  // Global Google Workspace Authentication tokens
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
-  const [defaultQuery, setDefaultQuery] = useState<string>('');
-
+  
   // LinkedIn native token
   const [linkedInToken, setLinkedInToken] = useState<string | null>(null);
 
@@ -71,12 +45,6 @@ export default function App() {
       .then((data) => {
         if (data.googleClientId) {
           setGoogleClientId(data.googleClientId);
-        }
-        if (data.defaultSearchQuery) {
-          setDefaultQuery(data.defaultSearchQuery);
-        }
-        if (data.defaultSpreadsheetId && !localStorage.getItem('jobtracker_sheets_id')) {
-          localStorage.setItem('jobtracker_sheets_id', data.defaultSpreadsheetId);
         }
       })
       .catch((err) => console.error('Error loading config:', err));
@@ -129,7 +97,6 @@ export default function App() {
         callback: (tokenResponse: any) => {
           if (tokenResponse.access_token) {
             setGoogleToken(tokenResponse.access_token);
-            sessionStorage.setItem('jobtracker_google_token', tokenResponse.access_token);
           } else {
             alert("Authorization closed or rejected.");
           }
@@ -150,7 +117,7 @@ export default function App() {
         throw new Error('Failed to get auth URL');
       }
       const { url } = await response.json();
-
+      
       const authWindow = window.open(
         url,
         'oauth_popup',
@@ -233,7 +200,7 @@ export default function App() {
       notes: 'Quick logged from job bulletin alerts feed.',
       updatedAt: new Date().toISOString()
     };
-
+    
     // Add application and dismiss associated alert
     handleUpdateApplications([newApp, ...applications]);
     handleUpdateAlerts(alerts.filter((a) => a.id !== alert.id));
@@ -245,8 +212,8 @@ export default function App() {
     const newAppsList = [...applications];
     data.applications.forEach((incoming) => {
       const existingIdx = newAppsList.findIndex(
-        (ex) => ex.company.toLowerCase() === incoming.company.toLowerCase() &&
-          ex.role.toLowerCase() === incoming.role.toLowerCase()
+        (ex) => ex.company.toLowerCase() === incoming.company.toLowerCase() && 
+                ex.role.toLowerCase() === incoming.role.toLowerCase()
       );
 
       if (existingIdx > -1) {
@@ -274,8 +241,8 @@ export default function App() {
     const newAlertsList = [...alerts];
     data.jobAlerts.forEach((incomingAlert) => {
       const exists = newAlertsList.some(
-        (ex) => ex.company.toLowerCase() === incomingAlert.company.toLowerCase() &&
-          ex.title.toLowerCase() === incomingAlert.title.toLowerCase()
+        (ex) => ex.company.toLowerCase() === incomingAlert.company.toLowerCase() && 
+                ex.title.toLowerCase() === incomingAlert.title.toLowerCase()
       );
       if (!exists) {
         newAlertsList.unshift({
@@ -290,56 +257,12 @@ export default function App() {
     handleUpdateAlerts(newAlertsList);
   };
 
-  const handleLogout = () => {
-    if (window.confirm("Do you want to log out? This will clear your Google access session and refresh the application state.")) {
-      setGoogleToken(null);
-      sessionStorage.removeItem('jobtracker_google_token');
-      window.location.reload();
-    }
-  };
-
   return (
     <div className="flex h-screen w-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
-
-      {/* LOGIN GATE OVERLAY */}
-      <AnimatePresence>
-        {!googleToken && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-6"
-          >
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col items-center p-8 text-center">
-              <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-lg">
-                <Mail className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Enterprise Job Tracker</h2>
-              <p className="text-slate-500 mt-2 text-sm leading-relaxed">
-                Connect your professional workspace to enable A.I. parsing, Gmail sync, and real-time application tracking.
-              </p>
-
-              <div className="w-full h-px bg-slate-100 my-8" />
-
-              <button
-                onClick={handleConnectGoogle}
-                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-3 transition-all cursor-pointer shadow-md active:scale-[0.98]"
-              >
-                <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="G" className="w-5 h-5" />
-                Sign in with Google Workspace
-              </button>
-
-              <p className="text-[10px] text-slate-400 mt-6 uppercase tracking-widest font-bold">
-                Secure OAuth 2.0 Integration
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      
       {/* LEFT SIDEBAR NAVIGATION */}
       <aside className="w-58 bg-slate-900 text-white flex flex-col shrink-0 border-r border-slate-800 select-none">
-
+        
         {/* Workspace Brand Title */}
         <div className="p-5 border-b border-slate-800/60 shrink-0">
           <h1 className="text-base font-black tracking-tight flex items-center gap-2">
@@ -352,7 +275,7 @@ export default function App() {
 
         {/* Channels & Filters list */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-none">
-
+          
           <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-3 mb-2">
             Origins & Sources
           </div>
@@ -362,10 +285,11 @@ export default function App() {
               setSelectedSource('all');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'all' && selectedSmartFilter === 'all'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'all' && selectedSmartFilter === 'all'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <FolderDot className="w-3.5 h-3.5 text-slate-450" />
             <span>All Channels</span>
@@ -379,10 +303,11 @@ export default function App() {
               setSelectedSource('linkedin');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'linkedin'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'linkedin'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <span className="h-2 w-2 rounded-full bg-blue-500"></span>
             <span>LinkedIn</span>
@@ -396,10 +321,11 @@ export default function App() {
               setSelectedSource('naukri');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'naukri'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'naukri'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <span className="h-2 w-2 rounded-full bg-slate-400"></span>
             <span>Naukri.com</span>
@@ -413,10 +339,11 @@ export default function App() {
               setSelectedSource('foundit');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'foundit'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'foundit'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <span className="h-2 w-2 rounded-full bg-purple-500"></span>
             <span>Foundit</span>
@@ -430,10 +357,11 @@ export default function App() {
               setSelectedSource('gmail');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'gmail'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'gmail'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
             <span>Gmail Syncs</span>
@@ -447,10 +375,11 @@ export default function App() {
               setSelectedSource('manual');
               setSelectedSmartFilter('all');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSource === 'manual'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSource === 'manual'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
             <span>Manual Track</span>
@@ -469,10 +398,11 @@ export default function App() {
               setSelectedSource('all');
               setSelectedSmartFilter('applied');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSmartFilter === 'applied'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSmartFilter === 'applied'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <Layers className="w-3.5 h-3.5 text-indigo-400" />
             <span>Sent Only</span>
@@ -486,10 +416,11 @@ export default function App() {
               setSelectedSource('all');
               setSelectedSmartFilter('assessments');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSmartFilter === 'assessments'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSmartFilter === 'assessments'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <CheckSquare className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
             <span>Assessments</span>
@@ -503,10 +434,11 @@ export default function App() {
               setSelectedSource('all');
               setSelectedSmartFilter('interviews');
             }}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${selectedSmartFilter === 'interviews'
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold tracking-tight transition-all text-left cursor-pointer ${
+              selectedSmartFilter === 'interviews'
                 ? 'bg-slate-800 text-white'
                 : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
+            }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
             <span>Interviews & Replies</span>
@@ -518,57 +450,15 @@ export default function App() {
         </nav>
 
         {/* User context layout bottom footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/45 shrink-0 space-y-3">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/45 shrink-0">
           <div className="flex items-center gap-2 md:gap-2.5">
-            {userProfile?.picture ? (
-              <img
-                src={userProfile.picture}
-                alt="Profile"
-                className="w-7 h-7 rounded-lg object-cover shrink-0 border border-slate-700"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
-                {userProfile?.name?.charAt(0) || <User className="w-4 h-4" />}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black text-slate-100 truncate">
-                {userProfile?.name || 'Not Signed In'}
-              </p>
-              <p className="text-[9px] text-slate-500 truncate">
-                {userProfile?.email || 'Login to sync data'}
-              </p>
+            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
+              VR
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5 pt-1">
-            {googleToken ? (
-              <div className="flex items-center justify-between text-[9px] font-bold">
-                <span className="text-emerald-500 flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Session
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <LogOut className="w-3 h-3" /> Logout
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleConnectGoogle}
-                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Mail className="w-3 h-3" /> Login to Google
-              </button>
-            )}
-
-            {googleToken && (
-              <div className="bg-slate-800/50 p-1.5 rounded text-[8px] font-mono text-slate-500 break-all leading-tight">
-                TOKEN: {googleToken.substring(0, 16)}...
-              </div>
-            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-black text-slate-100 truncate">Vishal Reddy</p>
+              <p className="text-[9px] text-slate-500 truncate">vishalreddy354@gmail.com</p>
+            </div>
           </div>
         </div>
 
@@ -576,7 +466,7 @@ export default function App() {
 
       {/* MAIN RIGHT PANEL CONTENT SCROLL CONTAINER */}
       <main className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
-
+        
         {/* Horizontal Status Ribbon */}
         <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -587,13 +477,13 @@ export default function App() {
 
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold bg-slate-100 px-2.5 py-1 rounded-lg">
             <Calendar className="w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <span>Synced Recently</span>
+            <span>Synced 2m ago</span>
           </div>
         </header>
 
         {/* Scrollable Layout Context */}
         <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-
+          
           {/* Dynamic numerical stats card grid */}
           <section id="metrics-overview">
             <DashboardStats applications={applications} />
@@ -616,7 +506,7 @@ export default function App() {
 
           {/* Lower layout parsers sandboxes & alerts bulletins columns */}
           <div id="lower-dashboard-layout" className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-1">
-
+            
             {/* Sync Integrations & Sandbox parsers section (Left) */}
             <div className="lg:col-span-5 flex flex-col gap-6">
               <LinkedInSyncPanel
@@ -628,7 +518,6 @@ export default function App() {
                 token={googleToken}
                 onConnectGoogle={handleConnectGoogle}
                 onImportData={handleImportedData}
-                defaultQuery={defaultQuery}
               />
               <GoogleCalendarPanel
                 token={googleToken}
@@ -638,7 +527,6 @@ export default function App() {
                 token={googleToken}
                 onConnectGoogle={handleConnectGoogle}
                 applications={applications}
-                onImportData={handleImportedData}
               />
               <EmailParserTool onImportData={handleImportedData} />
             </div>
@@ -656,7 +544,7 @@ export default function App() {
 
           {/* Legal / status signature */}
           <footer className="pt-6 pb-2 border-t border-slate-200 text-center text-[10px] text-slate-400 font-sans tracking-wide">
-            Powered by standard client-side sandbox cache & Gemini LLM parsing models. Unified profile: {userProfile?.email || 'N/A'}
+            Powered by standard client-side sandbox cache & Gemini LLM parsing models. Unified profile: vishalreddy354@gmail.com
           </footer>
 
         </div>
