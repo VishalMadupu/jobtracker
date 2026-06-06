@@ -90,13 +90,17 @@ You are a highly details-focused Recruitment Analytics AI. Your task is to proce
 Follow these classification rules strictly:
 1. "applications": User's active applications. Identify elements such as:
    - Company name & Job title/role.
-   - Origin source: 'gmail' (general), 'linkedin', 'naukri', or 'foundit' (previously Monster India).
+   - Origin source detection rules:
+     - 'linkedin': Emails from domains like @linkedin.com, notifications mentioning "LinkedIn", "Easy Apply", or "LinkedIn Jobs".
+     - 'naukri': Emails from @naukri.com, @infoedge.com, or containing "Naukri", "naukri.com" in subject/body. Common senders: info@naukri.com, notification@naukri.com, do-not-reply@naukri.com.
+     - 'foundit': Emails from @foundit.in, @monsterindia.com, or containing "foundit", "Monster India" in subject/body. Common senders: noreply@foundit.in, alerts@foundit.in.
+     - 'gmail': Any other email that doesn't match the above platforms.
    - "status":
-     - 'applied': The user submitted a resume, applied on a board, or received an auto-acknowledgment.
+     - 'applied': The user submitted a resume, applied on a board, or received an auto-acknowledgment (e.g., "Your application has been received", "Thank you for applying").
      - 'assessment': An online test link, cognitive test, HackerRank/LeetCode invitation, or technical assessment invitation is found or referenced.
      - 'interview': Booking a call, Calendly links, recruiter interview schedule, technical round, video interview, or offer negotiation calls.
-     - 'offer': Job offer letter, contract details.
-     - 'rejected': Hard-rejection letters, "not moving forward".
+     - 'offer': Job offer letter, contract details, salary discussion confirmations.
+     - 'rejected': Hard-rejection letters, "not moving forward", "we regret to inform", "unfortunately".
    - "pendingAssessment": Set to true if there is an active assessment/test invitation that requires completion.
    - "assessmentDetails": Extract details of the test (e.g., deadline, assessment platform like HackerRank, duration) if present, otherwise null.
    - "replyReceived": Set to true if the email is a conversational reply from a real human recruiter rather than an automated no-reply newsletter/marketing campaign.
@@ -132,61 +136,78 @@ app.post('/api/parse-email', async (req, res) => {
       userPromptString = `Please analyze the following copy-pasted email headers and body texts:\n\n${emailContent}`;
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: userPromptString,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            applications: {
-              type: Type.ARRAY,
-              description: "Array of extracted or updated job applications active in pipeline",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  company: { type: Type.STRING },
-                  role: { type: Type.STRING },
-                  status: { 
-                    type: Type.STRING, 
-                    description: "Status must be 'applied', 'assessment', 'interview', 'offer', 'rejected', or 'other'." 
-                  },
-                  source: { 
-                    type: Type.STRING, 
-                    description: "Source platform: 'gmail', 'linkedin', 'naukri', 'foundit', or 'manual'." 
-                  },
-                  date: { type: Type.STRING },
-                  snippet: { type: Type.STRING, description: "A very brief 1-2 sentence summary of the email context." },
-                  pendingAssessment: { type: Type.BOOLEAN },
-                  assessmentDetails: { type: Type.STRING, description: "Deadlines, platform (HackerRank/etc), null if none" },
-                  replyReceived: { type: Type.BOOLEAN }
+    // Retry logic for Gemini API rate limits (429 errors)
+    let response: any = null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: userPromptString,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                applications: {
+                  type: Type.ARRAY,
+                  description: "Array of extracted or updated job applications active in pipeline",
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      company: { type: Type.STRING },
+                      role: { type: Type.STRING },
+                      status: { 
+                        type: Type.STRING, 
+                        description: "Status must be 'applied', 'assessment', 'interview', 'offer', 'rejected', or 'other'." 
+                      },
+                      source: { 
+                        type: Type.STRING, 
+                        description: "Source platform: 'gmail', 'linkedin', 'naukri', 'foundit', or 'manual'." 
+                      },
+                      date: { type: Type.STRING },
+                      snippet: { type: Type.STRING, description: "A very brief 1-2 sentence summary of the email context." },
+                      pendingAssessment: { type: Type.BOOLEAN },
+                      assessmentDetails: { type: Type.STRING, description: "Deadlines, platform (HackerRank/etc), null if none" },
+                      replyReceived: { type: Type.BOOLEAN }
+                    },
+                    required: ["company", "role", "status", "source", "date", "snippet", "pendingAssessment", "replyReceived"]
+                  }
                 },
-                required: ["company", "role", "status", "source", "date", "snippet", "pendingAssessment", "replyReceived"]
-              }
-            },
-            jobAlerts: {
-              type: Type.ARRAY,
-              description: "Array of extracted general job alert digests or recommendations from boards like LinkedIn, Naukri, or Foundit.",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  company: { type: Type.STRING },
-                  source: { type: Type.STRING, description: "Must be one of 'linkedin', 'naukri', 'foundit', or 'other'." },
-                  date: { type: Type.STRING },
-                  snippet: { type: Type.STRING },
-                  link: { type: Type.STRING, description: "Null if not found." }
-                },
-                required: ["title", "company", "source", "date", "snippet"]
-              }
+                jobAlerts: {
+                  type: Type.ARRAY,
+                  description: "Array of extracted general job alert digests or recommendations from boards like LinkedIn, Naukri, or Foundit.",
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      company: { type: Type.STRING },
+                      source: { type: Type.STRING, description: "Must be one of 'linkedin', 'naukri', 'foundit', or 'other'." },
+                      date: { type: Type.STRING },
+                      snippet: { type: Type.STRING },
+                      link: { type: Type.STRING, description: "Null if not found." }
+                    },
+                    required: ["title", "company", "source", "date", "snippet"]
+                  }
+                }
+              },
+              required: ["applications", "jobAlerts"]
             }
-          },
-          required: ["applications", "jobAlerts"]
+          }
+        });
+        break; // Success, exit retry loop
+      } catch (retryErr: any) {
+        const is429 = retryErr?.status === 429 || retryErr?.message?.includes('429') || retryErr?.message?.includes('RESOURCE_EXHAUSTED');
+        if (is429 && attempt < MAX_RETRIES) {
+          const waitMs = attempt * 3000; // 3s, 6s backoff
+          console.warn(`Gemini API rate limited (attempt ${attempt}/${MAX_RETRIES}). Retrying in ${waitMs / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+          continue;
         }
+        throw retryErr; // Re-throw if not retryable or max retries exceeded
       }
-    });
+    }
 
     if (!response || !response.text) {
       console.error('Gemini API returned an empty or invalid response:', response);
@@ -194,7 +215,12 @@ app.post('/api/parse-email', async (req, res) => {
     }
 
     try {
-      const parsedData = JSON.parse(response.text);
+      // Sanitize: strip markdown code fences if Gemini wraps JSON in ```json ... ```
+      let rawText = response.text;
+      if (rawText.startsWith('```')) {
+        rawText = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+      }
+      const parsedData = JSON.parse(rawText);
       res.json(parsedData);
     } catch (parseError) {
       console.error('Failed to parse Gemini JSON response:', response.text);
@@ -206,8 +232,10 @@ app.post('/api/parse-email', async (req, res) => {
     let errorMsg = error?.message || 'Server error occurred during analysis.';
     if (errorMsg.includes('API key not valid')) {
       errorMsg = 'Invalid Gemini API Key. Please verify your GEMINI_API_KEY in the .env file.';
+    } else if (error?.status === 429 || errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('quota')) {
+      errorMsg = 'Gemini API quota exceeded. Your free-tier daily limit has been reached. Please wait a few minutes and try again, or upgrade to a paid plan at https://ai.google.dev/pricing';
     }
-    res.status(500).json({ error: errorMsg });
+    res.status(error?.status === 429 ? 429 : 500).json({ error: errorMsg });
   }
 });
 

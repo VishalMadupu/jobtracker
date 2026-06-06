@@ -71,10 +71,10 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData, d
 
       setStatusMsg(`Found ${messages.length} messages. Fetching email snippets & details...`);
 
-      // Step 2: Fetch details for messages in parallel
+      // Step 2: Fetch details for messages in parallel (format=full for headers + body)
       const detailedEmails = await Promise.all(
         messages.map(async (m: { id: string }) => {
-          const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=minimal`;
+          const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`;
           const detailRes = await fetch(detailUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
@@ -85,11 +85,48 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData, d
           }
           const detailData = await detailRes.json();
 
-          // Extract Subject, From, Date headers
+          // Extract Subject, From, Date headers from payload
           const headers = detailData.payload?.headers || [];
           const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || 'No Subject';
           const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
           const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || 'Unknown Date';
+
+          // Decode base64url email body from payload
+          let bodyText = '';
+          try {
+            const payload = detailData.payload;
+            let rawData = '';
+
+            if (payload?.body?.data) {
+              // Single-part message
+              rawData = payload.body.data;
+            } else if (payload?.parts) {
+              // Multipart message — find the text/plain part first, fallback to text/html
+              const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+              const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+              const bestPart = textPart || htmlPart;
+              if (bestPart?.body?.data) {
+                rawData = bestPart.body.data;
+              }
+            }
+
+            if (rawData) {
+              // Decode base64url: replace URL-safe chars and decode
+              const base64 = rawData.replace(/-/g, '+').replace(/_/g, '/');
+              bodyText = decodeURIComponent(
+                atob(base64)
+                  .split('')
+                  .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                  .join('')
+              );
+              // Truncate very long bodies to avoid token limits
+              if (bodyText.length > 3000) {
+                bodyText = bodyText.substring(0, 3000) + '...[truncated]';
+              }
+            }
+          } catch (decodeErr) {
+            console.warn('Failed to decode email body for message:', m.id, decodeErr);
+          }
 
           return {
             id: m.id,
@@ -97,6 +134,7 @@ export default function GmailSyncPanel({ token, onConnectGoogle, onImportData, d
             from,
             date,
             snippet: detailData.snippet || '',
+            body: bodyText || detailData.snippet || '',
           };
         })
       );
